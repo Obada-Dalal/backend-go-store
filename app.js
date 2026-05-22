@@ -45,7 +45,7 @@ cloudinary.config({
 
 // اتصال Atlas
 mongoose
-  .connect(process.env.mongodb_URl)
+  .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ Connected to MongoDB Atlas"))
   .catch((err) => console.error("❌ MongoDB Error:", err));
 
