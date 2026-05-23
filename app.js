@@ -966,7 +966,7 @@ app.get(
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
       const orders = await Order.find(query)
-        .populate("userId", "name email")
+        .populate("userId", "name email phoneNumber")
         .populate({
           path: "items.productId",
           select: "name images price"
