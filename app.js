@@ -109,6 +109,44 @@ app.get("/api/me", authMiddleware, async (req, res) => {
 // ============================
 
 // Register
+// app.post(
+//   "/api/register",
+//   body("name").notEmpty().withMessage("الاسم مطلوب"),
+//   body("email").isEmail().withMessage("بريد إلكتروني غير صالح"),
+//   body("password")
+//     .isLength({ min: 6 })
+//     .withMessage("كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
+//   async (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty())
+//       return res.status(400).json({ errors: errors.array() });
+
+//     try {
+//       const { name, email, password } = req.body;
+//       const existingUser = await User.findOne({ email });
+//       if (existingUser)
+//         return res
+//           .status(400)
+//           .json({ error: "البريد الإلكتروني مستخدم بالفعل" });
+
+//       const salt = await bcrypt.genSalt(10);
+//       const passwordHash = await bcrypt.hash(password, salt);
+
+//       const user = new User({ name, email, passwordHash });
+//       await user.save();
+
+//       const token = jwt.sign(
+//         { id: user._id, role: user.role },
+//         process.env.JWT_SECRET,
+//         { expiresIn: "1d" }
+//       );
+
+//       res.json({ message: "تم إنشاء الحساب بنجاح", token, user });
+//     } catch (err) {
+//       res.status(500).json({ error: err.message });
+//     }
+//   }
+// );
 app.post(
   "/api/register",
   body("name").notEmpty().withMessage("الاسم مطلوب"),
@@ -116,13 +154,24 @@ app.post(
   body("password")
     .isLength({ min: 6 })
     .withMessage("كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
+  body("phoneNumber") // 👈 إضافة هذا التحقق
+    .notEmpty()
+    .withMessage("رقم الهاتف مطلوب")
+    .matches(/^\d{10}$/)
+    .withMessage("رقم الهاتف يجب أن يكون مكوناً من 10 أرقام بالضبط"),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty())
       return res.status(400).json({ errors: errors.array() });
 
     try {
-      const { name, email, password } = req.body;
+      const { name, email, password, phoneNumber } = req.body; // 👈 إضافة phoneNumber
+
+      // التحقق من عدم تكرار الرقم (اختياري لكن مستحسن)
+      const existingPhone = await User.findOne({ phoneNumber });
+      if (existingPhone)
+        return res.status(400).json({ error: "رقم الهاتف مستخدم بالفعل" });
+
       const existingUser = await User.findOne({ email });
       if (existingUser)
         return res
@@ -132,7 +181,7 @@ app.post(
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(password, salt);
 
-      const user = new User({ name, email, passwordHash });
+      const user = new User({ name, email, passwordHash, phoneNumber }); // 👈 إضافة phoneNumber
       await user.save();
 
       const token = jwt.sign(
@@ -141,8 +190,19 @@ app.post(
         { expiresIn: "1d" }
       );
 
-      res.json({ message: "تم إنشاء الحساب بنجاح", token, user });
+      // لا ترجع passwordHash في الرد
+      const { passwordHash: _, ...userWithoutPassword } = user.toObject();
+      res.json({
+        message: "تم إنشاء الحساب بنجاح",
+        token,
+        user: userWithoutPassword
+      });
     } catch (err) {
+      if (err.code === 11000) {
+        return res
+          .status(400)
+          .json({ error: "البريد الإلكتروني أو رقم الهاتف موجود بالفعل" });
+      }
       res.status(500).json({ error: err.message });
     }
   }
@@ -195,19 +255,41 @@ app.get("/api/users", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // تحديث مستخدم
+// app.put("/api/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
+//   try {
+//     const { name, email, role } = req.body;
+//     const updateData = { name, role };
+//     if (email) updateData.email = email;
+
+//     const user = await User.findByIdAndUpdate(req.params.id, updateData, {
+//       new: true
+//     }).select("-passwordHash");
+
+//     if (!user) return res.status(404).json({ error: "المستخدم غير موجود" });
+//     res.json(user);
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 app.put("/api/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { name, email, role } = req.body;
+    const { name, email, role, phoneNumber } = req.body; // 👈 إضافة phoneNumber
     const updateData = { name, role };
+
     if (email) updateData.email = email;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber; // 👈 السماح بتحديث الرقم
 
     const user = await User.findByIdAndUpdate(req.params.id, updateData, {
-      new: true
+      new: true,
+      runValidators: true // 👈 مهم جداً لتطبيق validate من الـ Schema
     }).select("-passwordHash");
 
     if (!user) return res.status(404).json({ error: "المستخدم غير موجود" });
     res.json(user);
   } catch (err) {
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ error: err.message });
+    }
     res.status(500).json({ error: err.message });
   }
 });
