@@ -1164,8 +1164,6 @@ app.post(
   authMiddleware,
   adminMiddleware,
   body("title").notEmpty().withMessage("عنوان الإعلان مطلوب"),
-  body("startDate").notEmpty().withMessage("تاريخ البداية مطلوب"),
-  body("endDate").notEmpty().withMessage("تاريخ النهاية مطلوب"),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty())
