@@ -1165,6 +1165,8 @@ app.post(
   adminMiddleware,
   body("title").notEmpty().withMessage("عنوان الإعلان مطلوب"),
   async (req, res) => {
+    console.log("body:", req.body); // أضف هذا
+    console.log("title:", req.body.title); // أضف هذا
     const errors = validationResult(req);
     if (!errors.isEmpty())
       return res.status(400).json({ errors: errors.array() });
