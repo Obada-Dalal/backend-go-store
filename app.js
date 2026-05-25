@@ -1163,18 +1163,25 @@ app.post(
   "/api/advertisements",
   authMiddleware,
   adminMiddleware,
-  body("title").notEmpty().withMessage("عنوان الإعلان مطلوب"),
   async (req, res) => {
-    console.log("body:", req.body); // أضف هذا
-    console.log("title:", req.body.title); // أضف هذا
-    const errors = validationResult(req);
-    if (!errors.isEmpty())
-      return res.status(400).json({ errors: errors.array() });
+    // تسجيل البيانات المستلمة للتأكد
+    console.log("بيانات الطلب المرسلة:", req.body);
+
+    // تحقق يدوي واضح بدلاً من express-validator
+    if (!req.body.title || req.body.title.trim() === "") {
+      return res.status(400).json({ error: "عنوان الإعلان مطلوب" });
+    }
 
     try {
-      const ad = new Advertisement(req.body);
+      const ad = new Advertisement({
+        title: req.body.title,
+        description: req.body.description,
+        images: req.body.images || [],
+        priority: req.body.priority || 0,
+        isActive: req.body.isActive !== undefined ? req.body.isActive : true
+      });
       await ad.save();
-      res.json(ad);
+      res.status(201).json(ad);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -1193,6 +1200,7 @@ app.put(
         req.body,
         { new: true }
       );
+      if (!ad) return res.status(404).json({ message: "الإعلان غير موجود" });
       res.json(ad);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -1207,7 +1215,8 @@ app.delete(
   adminMiddleware,
   async (req, res) => {
     try {
-      await Advertisement.findByIdAndDelete(req.params.id);
+      const ad = await Advertisement.findByIdAndDelete(req.params.id);
+      if (!ad) return res.status(404).json({ message: "الإعلان غير موجود" });
       res.json({ message: "تم حذف الإعلان بنجاح" });
     } catch (err) {
       res.status(500).json({ error: err.message });
